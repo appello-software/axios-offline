@@ -1,8 +1,9 @@
 # @appello/axios-offline
 
 [![npm package](https://badgen.net/npm/v/@appello/axios-offline)](https://www.npmjs.com/package/@appello/axios-offline)
-[![npm downloads](https://badgen.net/npm/dt/@appello/axios-offline)](https://www.npmjs.com/package/@appello/axios-offline)
 [![License: MIT](https://badgen.net/npm/license/@appello/axios-offline)](https://opensource.org/licenses/MIT)
+
+[//]: # ([![npm downloads]&#40;https://badgen.net/npm/dw/@appello/axios-offline&#41;]&#40;https://www.npmjs.com/package/@appello/axios-offline&#41;)
 
 Remembering failed requests and repeating when an internet connection is available
 
