@@ -1,37 +1,52 @@
-# axios-offline
+# @appello/axios-offline
 
-[![npm package](https://img.shields.io/npm/v/axios-offline.svg)](https://www.npmjs.org/package/axios-offline)
-[![npm downloads](https://img.shields.io/npm/dt/axios-offline.svg)](https://www.npmjs.org/package/axios-offline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 Remembering failed requests and repeating when an internet connection is available
 
-## Install
+## Installation
 
 ```bash
-npm install axios-offline --save
-```
-or
-```bash
-yarn add axios-offline
+# using npm
+npm install @appello/axios-offline --save
+
+# using yarn
+yarn add @appello/axios-offline
 ```
 
 ## Usage
 
-```javascript
-import Axios from 'axios'
-import AxiosOffline from 'axios-offline'
-import LocalForage from "localforage"
+```typescript
+import axios, { AxiosAdapter } from 'axios';
+import { AxiosOffline } from '@appello/axios-offline';
+import NetInfo from '@react-native-community/netinfo';
+import LocalForage from 'localforage';
 
-let AxiosOfflineAdapter = AxiosOffline({
-  defaultAdapter: Axios.defaults.adapter, //require, basic adapter
-  storageName: "axios-offline", //optional, default: "axios-stack"
-  storageDriver: LocalForage.LOCALSTORAGE //optional, default: LocalForage.LOCALSTORAGE
-})
+const offlineUrls = ['/list', '/profile'];
 
-let http = Axios.create({
-  adapter: AxiosOfflineAdapter
-})
+export const axiosOfflineInstance = new AxiosOffline({
+  defaultAdapter: axios.defaults.adapter as AxiosAdapter, // require, basic adapter
+  storageOptions: {
+    name: 'axios-offline', // optional, default: "axios-stack"
+    driver: LocalForage.LOCALSTORAGE, // optional, default: LocalForage.LOCALSTORAGE
+  },
+  shouldStoreRequest: config => {
+    return config.method === 'POST' && offlineUrls.includes(config.url as string);
+  },
+  getResponsePlaceholder: config => ({
+    config,
+    headers: {},
+    data: undefined,
+    status: HttpStatusCode.Ok,
+    statusText: 'Request successfully stored till back online!',
+  }),
+});
 
-export default http
+export const Api = axios.create({
+  adapter: axiosOfflineInstance.adapter,
+});
+
+window.addEventListener('online', (event) => {
+  axiosOfflineInstance.sendRequestsFromStore();
+});
 ```
