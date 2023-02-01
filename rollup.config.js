@@ -7,6 +7,7 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from 'rollup-plugin-ts';
 import terser from '@rollup/plugin-terser';
+import json from '@rollup/plugin-json';
 import copy from 'rollup-plugin-copy';
 
 import pkg from './package.json' assert { type: 'json' };
@@ -67,6 +68,7 @@ const buildConfig = {
     peerDepsExternal(),
     nodeResolve(),
     commonjs(),
+    json(),
     babel({
       exclude: 'node_modules/**',
       presets: ['@babel/preset-env'],
