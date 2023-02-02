@@ -96,7 +96,7 @@ const browserConfig = {
     {
       file: pkg.unpkg,
       format: 'umd',
-      name: 'Dropdown',
+      name: 'axios-offline',
     }
   ],
   plugins: [terser()]
