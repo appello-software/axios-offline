@@ -52,6 +52,7 @@
     "build:watch": "rollup -c -w",
     "prettier": "prettier --write src/**/*",
     "prepublishOnly": "npm run build",
+    "preversion": "npm run build",
     "postversion": "git push && git push --tags"
   },
   "babel": {
