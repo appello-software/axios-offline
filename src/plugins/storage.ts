@@ -9,8 +9,14 @@ export const createStorage = ({
   name = 'axios-stack',
   driver = localForage.LOCALSTORAGE,
 }: StorageOptions = {}) => {
+  let driverName = driver;
+  if (typeof driver !== 'string') {
+    driverName = driver._driver;
+    localForage.defineDriver(driver);
+  }
+
   return localForage.createInstance({
     name,
-    driver: driver as any,
+    driver: driverName,
   });
 };
