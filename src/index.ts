@@ -32,6 +32,8 @@ export class AxiosOffline {
     shouldStoreRequest = () => true,
     getResponsePlaceholder,
   }: AxiosOfflineOptions) {
+    if (typeof defaultAdapter !== 'function') throw new Error('defaultAdapter should be a function!');
+
     this.defaultAdapter = defaultAdapter;
     this.storage = createStorage(storageOptions);
     this.options = {
