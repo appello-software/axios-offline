@@ -8,16 +8,19 @@
 Remembering failed requests and repeating when an internet connection is available
 
 ## Installation
-
+### Using npm
 ```bash
-# using npm
-npm install @appello/axios-offline --save
+npm install axios localforage # install peer dependencies
+npm install @appello/axios-offline
+```
 
-# using yarn
+### Using yarn
+```bash
+yarn add axios localforage # install peer dependencies
 yarn add @appello/axios-offline
 ```
 
-## Usage
+## Usage example
 
 ```typescript
 import axios, { AxiosAdapter } from 'axios';
