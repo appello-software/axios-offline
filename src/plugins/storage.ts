@@ -5,14 +5,14 @@ export type StorageOptions = {
   driver?: LocalForageOptions['driver'] | LocalForageDriver;
 };
 
-export const createStorage = ({
+export const createStorage = async ({
   name = 'axios-stack',
   driver = localForage.LOCALSTORAGE,
 }: StorageOptions = {}) => {
-  let driverName = driver;
-  if (typeof driver !== 'string') {
+  let driverName: string | string[] = driver as string | string[];
+  if (typeof driver !== 'string' && '_driver' in driver) {
     driverName = driver._driver;
-    localForage.defineDriver(driver);
+    await localForage.defineDriver(driver);
   }
 
   return localForage.createInstance({
