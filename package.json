@@ -24,9 +24,9 @@
     "src",
     "tsconfig.json"
   ],
-  "dependencies": {
+  "peerDependencies": {
     "axios": "^1.3.0",
-    "localforage": "^1.10.0"
+    "localforage": "*"
   },
   "devDependencies": {
     "@babel/core": "^7.20.12",
