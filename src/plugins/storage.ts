@@ -12,9 +12,9 @@ const setCustomDriver = async (forageInstance: LocalForage, driver: LocalForageD
 
 export const createStorage = ({
   name = 'axios-stack',
-  driver = localForage.LOCALSTORAGE,
+  driver,
 }: StorageOptions = {}) => {
-  if (typeof driver !== 'string' && '_driver' in driver) {
+  if (driver && typeof driver !== 'string' && '_driver' in driver) {
     const forageInstance = localForage.createInstance({
       name,
     });

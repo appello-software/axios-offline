@@ -1,99 +1,131 @@
-import { createStorage, StorageOptions } from './plugins/storage';
+import { pick } from '@appello/common/lib/utils/object';
 import {
   AxiosAdapter,
   AxiosError,
+  AxiosInstance,
   AxiosPromise,
+  AxiosRequestConfig,
   AxiosResponse,
-  InternalAxiosRequestConfig,
 } from 'axios';
 
+import { createStorage, StorageOptions } from './plugins/storage';
+import { NonFunctionProperties } from './types';
+
+type StorableAxiosRequestConfig = NonFunctionProperties<AxiosRequestConfig>;
+
 export interface AxiosOfflineOptions {
-  defaultAdapter: AxiosAdapter;
+  axiosInstance: AxiosInstance;
   storageOptions?: StorageOptions;
-  shouldStoreRequest?: (request: InternalAxiosRequestConfig) => boolean;
-  getResponsePlaceholder?: (request: InternalAxiosRequestConfig) => AxiosResponse;
+  getRequestToStore?: (request: AxiosRequestConfig) => StorableAxiosRequestConfig | undefined;
+  getResponsePlaceholder?: (request: AxiosRequestConfig, err: AxiosError) => AxiosResponse;
 }
 
 interface AxiosOfflineAdapter extends AxiosAdapter {
-  (config: InternalAxiosRequestConfig, fromStorage: boolean): AxiosPromise;
+  (config: AxiosRequestConfig, fromStorage: boolean): AxiosPromise;
 }
 
 export class AxiosOffline {
+  private readonly axiosInstance: AxiosInstance;
+
   private readonly storage: LocalForage;
+
   private readonly defaultAdapter: AxiosAdapter;
-  private readonly options: Required<Pick<AxiosOfflineOptions, 'shouldStoreRequest'>> &
+
+  private readonly options: Required<Pick<AxiosOfflineOptions, 'getRequestToStore'>> &
     Pick<AxiosOfflineOptions, 'getResponsePlaceholder'>;
 
-  private isSending: boolean = false;
+  private isSending = false;
 
   constructor({
-    defaultAdapter,
+    axiosInstance,
     storageOptions,
-    shouldStoreRequest = () => true,
+    getRequestToStore = config => pick(config, ['method', 'url', 'headers', 'data']),
     getResponsePlaceholder,
   }: AxiosOfflineOptions) {
-    if (typeof defaultAdapter !== 'function') throw new Error('defaultAdapter should be a function!');
-
-    this.defaultAdapter = defaultAdapter;
     this.storage = createStorage(storageOptions);
     this.options = {
-      shouldStoreRequest,
+      getRequestToStore,
       getResponsePlaceholder,
     };
+
+    this.defaultAdapter = axiosInstance.defaults.adapter as AxiosAdapter;
+    this.axiosInstance = axiosInstance;
+    this.axiosInstance.defaults.adapter = this.adapter;
   }
 
-  private storeRequest(request: InternalAxiosRequestConfig) {
-    return this.storage.setItem(String(Date.now()), request);
+  private async storeRequest(request: StorableAxiosRequestConfig) {
+    await this.storage.setItem(String(Date.now()), request);
   }
 
   private removeRequest(key: string) {
     return this.storage.removeItem(key);
   }
 
-  sendRequestsFromStore() {
+  private adapter: AxiosOfflineAdapter = async config => {
+    const fromStorage = config.headers?.[AxiosOffline.STORAGE_HEADER] || false;
+
+    try {
+      return await this.defaultAdapter(config);
+    } catch (err) {
+      const isOffline = AxiosOffline.checkIfOfflineError(err as AxiosError);
+
+      if (fromStorage || !isOffline) throw err;
+
+      const requestToStore = this.options.getRequestToStore(config);
+      if (requestToStore) {
+        await this.storeRequest(requestToStore);
+
+        if (this.options.getResponsePlaceholder) {
+          return this.options.getResponsePlaceholder(config, err as AxiosError);
+        }
+      }
+
+      throw err;
+    }
+  };
+
+  async sendRequestsFromStore() {
     if (this.isSending) return;
 
     this.isSending = true;
-    return this.storage
-      .iterate(async (request: InternalAxiosRequestConfig, key: string) => {
+    try {
+      const keys = (await this.storage.keys()).sort((keyA, keyB) => Number(keyA) - Number(keyB));
+      // eslint-disable-next-line no-restricted-syntax
+      for (const key of keys) {
         try {
-          await this.adapter(request, true);
-        } catch (e) {
-          return false;
+          // eslint-disable-next-line no-await-in-loop
+          const request: AxiosRequestConfig | null = await this.storage.getItem(key);
+          if (request) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.axiosInstance.request({
+              ...request,
+              headers: {
+                ...request.headers,
+                [AxiosOffline.STORAGE_HEADER]: true,
+              },
+            });
+          }
+        } catch (err) {
+          if (AxiosOffline.checkIfOfflineError(err as AxiosError)) {
+            break;
+          }
         }
 
+        // eslint-disable-next-line no-await-in-loop
         await this.removeRequest(key);
-        return;
-      })
-      .finally(() => {
-        this.isSending = false;
-      });
+      }
+    } finally {
+      this.isSending = false;
+    }
   }
 
-  adapter: AxiosOfflineAdapter = async (config, fromStorage = false) => {
-    let result: AxiosResponse;
-    try {
-      result = await this.defaultAdapter(config);
-    } catch (err) {
-      if (fromStorage) throw err;
+  static checkIfOfflineError(error: AxiosError): boolean {
+    const { code, response } = error;
+    return (
+      response === undefined &&
+      (code === AxiosError.ERR_NETWORK || code === AxiosError.ECONNABORTED)
+    );
+  }
 
-      const { code, response } = err as AxiosError;
-
-      if (
-        response === undefined &&
-        (code === AxiosError.ERR_NETWORK || code === AxiosError.ECONNABORTED) &&
-        this.options.shouldStoreRequest(config)
-      ) {
-        await this.storeRequest(config);
-      }
-
-      if (!this.options.getResponsePlaceholder) {
-        throw err;
-      }
-
-      result = this.options.getResponsePlaceholder(config);
-    }
-
-    return result;
-  };
+  static STORAGE_HEADER = 'x-from-storage';
 }
