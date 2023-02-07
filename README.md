@@ -7,6 +7,9 @@
 
 Remembering failed requests and repeating when an internet connection is available
 
+## Credentials  
+This package is based on a work of [jonkofee](https://github.com/jonkofee).
+
 ## Installation
 ### Using npm
 ```bash
