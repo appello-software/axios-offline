@@ -17,6 +17,7 @@ export const createStorage = ({
   if (driver && typeof driver !== 'string' && '_driver' in driver) {
     const forageInstance = localForage.createInstance({
       name,
+      driver: driver._driver,
     });
     setCustomDriver(forageInstance, driver);
     return forageInstance;
