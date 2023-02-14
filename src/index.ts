@@ -8,14 +8,21 @@ import {
   AxiosResponse,
 } from 'axios';
 
-import { createStorage, StorageOptions } from './plugins/storage';
 import { NonFunctionProperties } from './types';
 
 type StorableAxiosRequestConfig = NonFunctionProperties<AxiosRequestConfig>;
 
+export interface StorageInstance {
+  prefix?: string;
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<any>;
+  removeItem(key: string): Promise<any>;
+  keys(): Promise<readonly string[]>;
+}
+
 export interface AxiosOfflineOptions {
   axiosInstance: AxiosInstance;
-  storageOptions?: StorageOptions;
+  storageInstance: StorageInstance;
   getRequestToStore?: (request: AxiosRequestConfig) => StorableAxiosRequestConfig | undefined;
   getResponsePlaceholder?: (request: AxiosRequestConfig, err: AxiosError) => AxiosResponse;
 }
@@ -27,7 +34,7 @@ interface AxiosOfflineAdapter extends AxiosAdapter {
 export class AxiosOffline {
   private readonly axiosInstance: AxiosInstance;
 
-  private readonly storage: LocalForage;
+  private readonly storageInstance: Required<StorageInstance>;
 
   private readonly defaultAdapter: AxiosAdapter;
 
@@ -38,11 +45,14 @@ export class AxiosOffline {
 
   constructor({
     axiosInstance,
-    storageOptions,
+    storageInstance,
     getRequestToStore = config => pick(config, ['method', 'url', 'headers', 'data']),
     getResponsePlaceholder,
   }: AxiosOfflineOptions) {
-    this.storage = createStorage(storageOptions);
+    this.storageInstance = {
+      ...storageInstance,
+      prefix: storageInstance.prefix ?? AxiosOffline.STORAGE_PREFIX,
+    };
     this.options = {
       getRequestToStore,
       getResponsePlaceholder,
@@ -54,11 +64,14 @@ export class AxiosOffline {
   }
 
   private async storeRequest(request: StorableAxiosRequestConfig) {
-    await this.storage.setItem(String(Date.now()), request);
+    await this.storageInstance.setItem(
+      `${this.storageInstance.prefix}_${Date.now()}`,
+      JSON.stringify(request),
+    );
   }
 
   private removeRequest(key: string) {
-    return this.storage.removeItem(key);
+    return this.storageInstance.removeItem(key);
   }
 
   private adapter: AxiosOfflineAdapter = async config => {
@@ -89,14 +102,18 @@ export class AxiosOffline {
 
     this.isSending = true;
     try {
-      const keys = (await this.storage.keys()).sort((keyA, keyB) => Number(keyA) - Number(keyB));
+      const keys = (await this.storageInstance.keys())
+        .filter(key => key.startsWith(this.storageInstance.prefix))
+        .sort();
       // eslint-disable-next-line no-restricted-syntax
       for (const key of keys) {
         try {
-          // eslint-disable-next-line no-await-in-loop
-          const request: AxiosRequestConfig | null = await this.storage.getItem(key);
-          if (request) {
+          const request: AxiosRequestConfig | null = JSON.parse(
             // eslint-disable-next-line no-await-in-loop
+            (await this.storageInstance.getItem(key)) as string,
+          );
+          if (request) {
+            // es0lint-disable-next-line no-await-in-loop
             await this.axiosInstance.request({
               ...request,
               headers: {
@@ -128,4 +145,6 @@ export class AxiosOffline {
   }
 
   static STORAGE_HEADER = 'x-from-storage';
+
+  static STORAGE_PREFIX = '@axios-offline';
 }
