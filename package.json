@@ -1,6 +1,6 @@
 {
   "name": "@appello/axios-offline",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Store query and repeat",
   "repository": "github.com:Appello-Pty-Ltd/axios-offline.git",
   "homepage": "https://github.com/Appello-Pty-Ltd/axios-offline",
