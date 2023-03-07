@@ -81,7 +81,7 @@ export class AxiosOffline {
     const fromStorage = config.headers?.[AxiosOffline.STORAGE_HEADER] || false;
 
     try {
-      if (this.options.sendFromStorageFirst) {
+      if (this.options.sendFromStorageFirst && !fromStorage) {
         await this.sendingPromise;
       }
       return await this.defaultAdapter(config);
