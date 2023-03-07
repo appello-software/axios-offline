@@ -25,6 +25,7 @@ export interface AxiosOfflineOptions {
   storageInstance: StorageInstance;
   getRequestToStore?: (request: AxiosRequestConfig) => StorableAxiosRequestConfig | undefined;
   getResponsePlaceholder?: (request: AxiosRequestConfig, err: AxiosError) => AxiosResponse;
+  sendFromStorageFirst?: boolean;
 }
 
 interface AxiosOfflineAdapter extends AxiosAdapter {
@@ -39,15 +40,16 @@ export class AxiosOffline {
   private readonly defaultAdapter: AxiosAdapter;
 
   private readonly options: Required<Pick<AxiosOfflineOptions, 'getRequestToStore'>> &
-    Pick<AxiosOfflineOptions, 'getResponsePlaceholder'>;
+    Pick<AxiosOfflineOptions, 'getResponsePlaceholder' | 'sendFromStorageFirst'>;
 
-  private isSending = false;
+  private sendingPromise: Promise<void> | null = null;
 
   constructor({
     axiosInstance,
     storageInstance,
     getRequestToStore = config => pick(config, ['method', 'url', 'headers', 'data']),
     getResponsePlaceholder,
+    sendFromStorageFirst,
   }: AxiosOfflineOptions) {
     this.storageInstance = {
       ...storageInstance,
@@ -56,6 +58,7 @@ export class AxiosOffline {
     this.options = {
       getRequestToStore,
       getResponsePlaceholder,
+      sendFromStorageFirst,
     };
 
     this.defaultAdapter = axiosInstance.defaults.adapter as AxiosAdapter;
@@ -78,6 +81,9 @@ export class AxiosOffline {
     const fromStorage = config.headers?.[AxiosOffline.STORAGE_HEADER] || false;
 
     try {
+      if (this.options.sendFromStorageFirst) {
+        await this.sendingPromise;
+      }
       return await this.defaultAdapter(config);
     } catch (err) {
       const isOffline = AxiosOffline.checkIfOfflineError(err as AxiosError);
@@ -98,41 +104,43 @@ export class AxiosOffline {
   };
 
   async sendRequestsFromStore() {
-    if (this.isSending) return;
+    if (this.sendingPromise) return;
 
-    this.isSending = true;
     try {
-      const keys = (await this.storageInstance.keys())
-        .filter(key => key.startsWith(this.storageInstance.prefix))
-        .sort();
-      // eslint-disable-next-line no-restricted-syntax
-      for (const key of keys) {
-        try {
-          const request: AxiosRequestConfig | null = JSON.parse(
-            // eslint-disable-next-line no-await-in-loop
-            (await this.storageInstance.getItem(key)) as string,
-          );
-          if (request) {
-            // es0lint-disable-next-line no-await-in-loop
-            await this.axiosInstance.request({
-              ...request,
-              headers: {
-                ...request.headers,
-                [AxiosOffline.STORAGE_HEADER]: true,
-              },
-            });
+      this.sendingPromise = (async () => {
+        const keys = (await this.storageInstance.keys())
+          .filter(key => key.startsWith(this.storageInstance.prefix))
+          .sort();
+        // eslint-disable-next-line no-restricted-syntax
+        for (const key of keys) {
+          try {
+            const request: AxiosRequestConfig | null = JSON.parse(
+              // eslint-disable-next-line no-await-in-loop
+              (await this.storageInstance.getItem(key)) as string,
+            );
+            if (request) {
+              // es0lint-disable-next-line no-await-in-loop
+              await this.axiosInstance.request({
+                ...request,
+                headers: {
+                  ...request.headers,
+                  [AxiosOffline.STORAGE_HEADER]: true,
+                },
+              });
+            }
+          } catch (err) {
+            if (AxiosOffline.checkIfOfflineError(err as AxiosError)) {
+              break;
+            }
           }
-        } catch (err) {
-          if (AxiosOffline.checkIfOfflineError(err as AxiosError)) {
-            break;
-          }
-        }
 
-        // eslint-disable-next-line no-await-in-loop
-        await this.removeRequest(key);
-      }
+          // eslint-disable-next-line no-await-in-loop
+          await this.removeRequest(key);
+        }
+      })();
+      await this.sendingPromise;
     } finally {
-      this.isSending = false;
+      this.sendingPromise = null;
     }
   }
 
