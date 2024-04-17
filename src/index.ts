@@ -82,7 +82,7 @@ export class AxiosOffline {
 
     try {
       if (this.options.sendFromStorageFirst && !fromStorage) {
-        await this.sendingPromise;
+        await this.sendRequestsFromStore();
       }
       return await this.defaultAdapter(config);
     } catch (err) {
@@ -104,40 +104,40 @@ export class AxiosOffline {
   };
 
   async sendRequestsFromStore() {
-    if (this.sendingPromise) return;
-
     try {
-      this.sendingPromise = (async () => {
-        const keys = (await this.storageInstance.keys())
-          .filter(key => key.startsWith(this.storageInstance.prefix))
-          .sort();
-        // eslint-disable-next-line no-restricted-syntax
-        for (const key of keys) {
-          try {
-            const request: AxiosRequestConfig | null = JSON.parse(
-              // eslint-disable-next-line no-await-in-loop
-              (await this.storageInstance.getItem(key)) as string,
-            );
-            if (request) {
-              // es0lint-disable-next-line no-await-in-loop
-              await this.axiosInstance.request({
-                ...request,
-                headers: {
-                  ...request.headers,
-                  [AxiosOffline.STORAGE_HEADER]: true,
-                },
-              });
+      this.sendingPromise =
+        this.sendingPromise ??
+        (async () => {
+          const keys = (await this.storageInstance.keys())
+            .filter(key => key.startsWith(this.storageInstance.prefix))
+            .sort();
+          // eslint-disable-next-line no-restricted-syntax
+          for (const key of keys) {
+            try {
+              const request: AxiosRequestConfig | null = JSON.parse(
+                // eslint-disable-next-line no-await-in-loop
+                (await this.storageInstance.getItem(key)) as string,
+              );
+              if (request) {
+                // eslint-disable-next-line no-await-in-loop
+                await this.axiosInstance.request({
+                  ...request,
+                  headers: {
+                    ...request.headers,
+                    [AxiosOffline.STORAGE_HEADER]: true,
+                  },
+                });
+              }
+            } catch (err) {
+              if (AxiosOffline.checkIfOfflineError(err as AxiosError)) {
+                break;
+              }
             }
-          } catch (err) {
-            if (AxiosOffline.checkIfOfflineError(err as AxiosError)) {
-              break;
-            }
-          }
 
-          // eslint-disable-next-line no-await-in-loop
-          await this.removeRequest(key);
-        }
-      })();
+            // eslint-disable-next-line no-await-in-loop
+            await this.removeRequest(key);
+          }
+        })();
       await this.sendingPromise;
     } finally {
       this.sendingPromise = null;
