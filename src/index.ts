@@ -6,6 +6,8 @@ import {
   AxiosPromise,
   AxiosRequestConfig,
   AxiosResponse,
+  getAdapter,
+  InternalAxiosRequestConfig,
 } from 'axios';
 
 import { NonFunctionProperties } from './types';
@@ -29,7 +31,7 @@ export interface AxiosOfflineOptions {
 }
 
 interface AxiosOfflineAdapter extends AxiosAdapter {
-  (config: AxiosRequestConfig, fromStorage: boolean): AxiosPromise;
+  (config: InternalAxiosRequestConfig, fromStorage: boolean): AxiosPromise;
 }
 
 export class AxiosOffline {
@@ -61,7 +63,7 @@ export class AxiosOffline {
       sendFromStorageFirst,
     };
 
-    this.defaultAdapter = axiosInstance.defaults.adapter as AxiosAdapter;
+    this.defaultAdapter = getAdapter(axiosInstance.defaults.adapter);
     this.axiosInstance = axiosInstance;
     this.axiosInstance.defaults.adapter = this.adapter;
   }
