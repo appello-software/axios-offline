@@ -4,7 +4,6 @@ import {
   AxiosError,
   AxiosInstance,
   AxiosPromise,
-  AxiosRequestConfig,
   AxiosResponse,
   getAdapter,
   InternalAxiosRequestConfig,
@@ -12,7 +11,7 @@ import {
 
 import { NonFunctionProperties } from './types';
 
-type StorableAxiosRequestConfig = NonFunctionProperties<AxiosRequestConfig>;
+type StorableAxiosRequestConfig = NonFunctionProperties<InternalAxiosRequestConfig>;
 
 export interface StorageInstance {
   prefix?: string;
@@ -25,8 +24,10 @@ export interface StorageInstance {
 export interface AxiosOfflineOptions {
   axiosInstance: AxiosInstance;
   storageInstance: StorageInstance;
-  getRequestToStore?: (request: AxiosRequestConfig) => StorableAxiosRequestConfig | undefined;
-  getResponsePlaceholder?: (request: AxiosRequestConfig, err: AxiosError) => AxiosResponse;
+  getRequestToStore?: (
+    request: InternalAxiosRequestConfig,
+  ) => StorableAxiosRequestConfig | undefined;
+  getResponsePlaceholder?: (request: InternalAxiosRequestConfig, err: AxiosError) => AxiosResponse;
   sendFromStorageFirst?: boolean;
 }
 
@@ -116,7 +117,7 @@ export class AxiosOffline {
           // eslint-disable-next-line no-restricted-syntax
           for (const key of keys) {
             try {
-              const request: AxiosRequestConfig | null = JSON.parse(
+              const request: InternalAxiosRequestConfig | null = JSON.parse(
                 // eslint-disable-next-line no-await-in-loop
                 (await this.storageInstance.getItem(key)) as string,
               );
